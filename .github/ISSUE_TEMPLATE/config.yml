@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Installation and update guide
+    url: https://github.com/ENG-mohammed-fares/AgentOffice-Releases/blob/main/docs/INSTALLATION.md
+    about: Check the official installation instructions.
+  - name: Security reporting policy
+    url: https://github.com/ENG-mohammed-fares/AgentOffice-Releases/blob/main/SECURITY.md
+    about: Do not disclose vulnerabilities in public issues.

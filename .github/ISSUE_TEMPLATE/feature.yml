@@ -1,0 +1,23 @@
+name: Suggest an improvement
+description: Share a feature request or usability improvement
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Suggested improvement
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Public tracker
+      options:
+        - label: My suggestion contains no private data or security-sensitive details.
+          required: true

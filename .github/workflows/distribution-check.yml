@@ -1,0 +1,58 @@
+name: Public distribution integrity
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate documentation-only repository and published asset inventory
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          REVISION: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, re, urllib.request, urllib.error
+          repo = os.environ["REPOSITORY"]
+          def api(path):
+              req = urllib.request.Request("https://api.github.com/repos/" + repo + path, headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"], "Accept": "application/vnd.github+json", "User-Agent": "AgentOffice-distribution-check"})
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  return json.load(response)
+          tree = api("/git/trees/" + os.environ["REVISION"] + "?recursive=1")
+          if tree.get("truncated"):
+              raise SystemExit("Cannot verify repository tree")
+          files = {x["path"] for x in tree["tree"] if x["type"] == "blob"}
+          required = {"README.md", "SUPPORT.md", "SECURITY.md", "PRIVACY.md", "NOTICE.md", "docs/INSTALLATION.md", "docs/RELEASES.md"}
+          allowed = required | {".github/ISSUE_TEMPLATE/bug.yml", ".github/ISSUE_TEMPLATE/feature.yml", ".github/ISSUE_TEMPLATE/config.yml", ".github/PULL_REQUEST_TEMPLATE.md", ".github/workflows/distribution-check.yml"}
+          if not required <= files or not files <= allowed:
+              raise SystemExit("Unexpected distribution tree; review the public file inventory")
+          print("Public documentation inventory verified.")
+          if os.environ["EVENT_NAME"] != "release":
+              print("No new release event; no installer validation performed.")
+              raise SystemExit(0)
+          tag = os.environ["RELEASE_TAG"]
+          if not re.fullmatch(r"v\d+\.\d+\.\d+", tag):
+              raise SystemExit("Expected a stable version tag")
+          release = api("/releases/tags/" + tag)
+          if release["draft"] or release["prerelease"]:
+              raise SystemExit("Unexpected nonstable publication")
+          installer = "AgentOffice-Setup-" + tag[1:] + "-x64.exe"
+          assets = release["assets"]
+          expected = {installer, installer + ".blockmap", "latest.yml"}
+          if len(assets) != 3 or {a["name"] for a in assets} != expected or any(a["size"] <= 0 or a["state"] != "uploaded" for a in assets):
+              raise SystemExit("Unexpected release asset inventory")
+          print("Public release asset names and upload states verified. This is not an Authenticode or content-hash verification; those are pre-publication gates in the private release pipeline.")
+          PY
